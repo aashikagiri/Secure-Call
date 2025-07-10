@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h1>Video Call Dashboard</h1>
+        <p>Select a user to start a secure video call</p>
+        
+        <!-- Media Permission Status -->
+        <div id="permission-status" class="permission-status">
+            <i class="fas fa-video"></i>
+            <span id="permission-text">Checking media permissions...</span>
+        </div>
+    </div>
+
+    <div class="users-section">
+        <h2>Available Users</h2>
+        <div id="users-list" class="users-grid">
+            <!-- Users will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Video Call Modal -->
+    <div id="call-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Video Call</h3>
+                <button id="end-call" class="btn btn-danger">
+                    <i class="fas fa-phone-slash"></i> End Call
+                </button>
+            </div>
+            <div class="video-container">
+                <div style="position: relative;">
+                    <video id="local-video" autoplay muted playsinline></video>
+                    <div id="connection-status" class="connection-status connecting" style="display: none;">
+                        Connecting...
+                    </div>
+                </div>
+                <video id="remote-video" autoplay playsinline></video>
+            </div>
+            <div class="call-controls">
+                <button id="toggle-video" class="btn btn-secondary" title="Turn off camera">
+                    <i class="fas fa-video"></i>
+                </button>
+                <button id="toggle-audio" class="btn btn-secondary" title="Mute microphone">
+                    <i class="fas fa-microphone"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incoming Call Modal -->
+    <div id="incoming-call-modal" class="modal">
+        <div class="modal-content incoming-call-content">
+            <div class="incoming-call-header">
+                <div class="caller-avatar">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <h3>Incoming Call</h3>
+                <p id="caller-name">Unknown Caller</p>
+                <div class="call-animation">
+                    <div class="pulse-ring"></div>
+                    <div class="pulse-ring"></div>
+                    <div class="pulse-ring"></div>
+                </div>
+            </div>
+            <div class="incoming-call-actions">
+                <button id="reject-call-btn" class="btn btn-danger call-action-btn">
+                    <i class="fas fa-phone-slash"></i>
+                    <span>Decline</span>
+                </button>
+                <button id="answer-call-btn" class="btn btn-success call-action-btn">
+                    <i class="fas fa-phone"></i>
+                    <span>Answer</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Media Test Button -->
+    <button id="media-test-btn" class="audio-test-btn" title="Test Camera & Microphone">
+        <i class="fas fa-video"></i>
+    </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/videocall.js') }}"></script>
+<script>
+// Media test functionality
+document.getElementById('media-test-btn').addEventListener('click', async function() {
+    console.log('Testing media access...');
+    
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true
+        });
+        
+        // Test successful
+        showMessage('Camera and microphone access granted!', 'success');
+        
+        // Stop the test stream
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Update permission status
+        updatePermissionStatus('granted', 'Camera & Microphone: Ready');
+        
+    } catch (error) {
+        console.error('Media test failed:', error);
+        showMessage('Media access test failed. Check permissions.', 'error');
+        updatePermissionStatus('denied', 'Camera & Microphone: Access Denied');
+    }
+});
+
+// Update permission status indicator
+function updatePermissionStatus(status, text) {
+    const statusEl = document.getElementById('permission-status');
+    const textEl = document.getElementById('permission-text');
+    
+    if (statusEl && textEl) {
+        statusEl.className = `permission-status ${status}`;
+        textEl.textContent = text;
+        statusEl.style.display = 'block';
+        
+        // Hide after 5 seconds if granted
+        if (status === 'granted') {
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 5000);
+        }
+    }
+}
+
+// Check permissions on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Check if getUserMedia is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            updatePermissionStatus('denied', 'WebRTC not supported in this browser');
+            return;
+        }
+        
+        // Try to get device list to check basic permissions
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasCamera = devices.some(device => device.kind === 'videoinput');
+        const hasMicrophone = devices.some(device => device.kind === 'audioinput');
+        
+        if (!hasCamera && !hasMicrophone) {
+            updatePermissionStatus('denied', 'No camera or microphone found');
+        } else if (!hasCamera) {
+            updatePermissionStatus('prompt', 'No camera found, microphone available');
+        } else if (!hasMicrophone) {
+            updatePermissionStatus('prompt', 'Camera available, no microphone found');
+        } else {
+            updatePermissionStatus('prompt', 'Click to test camera & microphone');
+        }
+        
+    } catch (error) {
+        console.error('Error checking devices:', error);
+        updatePermissionStatus('prompt', 'Click to test media access');
+    }
+});
+</script>
+{% endblock %}
